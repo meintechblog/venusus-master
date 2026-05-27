@@ -1,0 +1,21 @@
+[Unit]
+Description=venusus-master Next.js app
+After=network.target postgresql.service venusus-embedding.service
+Wants=postgresql.service venusus-embedding.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/venusus-master
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=DATABASE_URL=postgres://venusus:venusus_local_only@127.0.0.1:5432/venusus_master
+Environment=EMBED_URL=http://127.0.0.1:8765
+ExecStart=/usr/bin/node /opt/venusus-master/node_modules/.bin/next start -p 3000
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

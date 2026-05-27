@@ -2,11 +2,38 @@ import Link from "next/link";
 import { HeroSearch } from "@/components/hero-search";
 import { CategoryTile } from "@/components/category-tile";
 import { SourceBadge } from "@/components/source-badge";
+import { LiveStats } from "@/components/live-stats";
 import { CATEGORIES, DOCS, getFindings } from "@/lib/data";
 import { ArrowRight, Cpu, GitPullRequest, Zap } from "lucide-react";
 import { formatDate, timeAgo } from "@/lib/utils";
+import { getStats } from "@/lib/db";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  // Server-rendered initial snapshot (avoids empty-state flicker); the LiveStats
+  // client component then subscribes to /api/stats/stream for live updates.
+  let initialStats = {};
+  try {
+    const s = await getStats();
+    initialStats = {
+      document_count: s.documentCount,
+      chunk_count: s.chunkCount,
+      source_type_count: s.sourceTypeCount,
+      victron_official_count: s.victronOfficialCount,
+      community_driver_count: s.communityDriverCount,
+      own_findings_count: s.ownFindingsCount,
+      pdf_count: s.pdfCount,
+      pro_portal_count: s.proPortalCount,
+      live_doc_count: s.liveDocCount,
+      memory_count: s.memoryCount,
+      source_repo_count: s.sourceRepoCount,
+      db_size_bytes: s.dbSizeBytes,
+      last_ingest_at: s.lastIngestAt,
+    };
+  } catch {
+    // DB not reachable in dev — LiveStats falls back to em-dashes.
+  }
   const recent = [...DOCS]
     .sort(
       (a, b) =>
@@ -80,12 +107,9 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* stats strip */}
-          <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-px bg-line border border-line rounded-md overflow-hidden">
-            <Stat label="Docs indexed" value={DOCS.length.toString()} />
-            <Stat label="Own findings" value={getFindings().length.toString()} />
-            <Stat label="Categories" value={CATEGORIES.length.toString()} />
-            <Stat label="Upstream PRs" value="7" hue="signal" />
+          {/* Live stats — server-rendered initial + SSE live updates */}
+          <div className="mt-16">
+            <LiveStats initial={initialStats} />
           </div>
         </div>
       </section>
@@ -210,29 +234,6 @@ export default function HomePage() {
         </div>
       </section>
     </>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  hue = "default",
-}: {
-  label: string;
-  value: string;
-  hue?: "default" | "signal";
-}) {
-  return (
-    <div className="bg-bg p-5">
-      <div className="label-micro text-ink-faint mb-2">{label}</div>
-      <div
-        className={`font-display text-[40px] leading-none tracking-tighter tabular-nums ${
-          hue === "signal" ? "text-signal" : "text-ink"
-        }`}
-      >
-        {value}
-      </div>
-    </div>
   );
 }
 

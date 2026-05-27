@@ -1,110 +1,89 @@
+// Hybrid search route — pgvector (semantic) + tsvector (FTS) with RRF.
+// Falls back to local DOCS stub if Postgres is unreachable, so the UI still works
+// in dev before content is ingested.
+
 import { NextRequest, NextResponse } from "next/server";
 import { DOCS } from "@/lib/data";
 import type { SearchResult } from "@/lib/types";
+import { hybridSearch } from "@/lib/db";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// Highlight occurrences of every query token, returning a wrapped snippet.
-function highlight(source: string, tokens: string[]): string {
-  if (!tokens.length) return source;
-  const escaped = tokens
-    .filter(Boolean)
-    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  if (!escaped.length) return source;
-  const re = new RegExp(`(${escaped.join("|")})`, "gi");
-  return source.replace(re, "<mark>$1</mark>");
-}
+function fallback(q: string): SearchResult[] {
+  const tokens = q.trim().split(/\s+/).filter(Boolean).map((t) => t.toLowerCase());
+  if (!tokens.length) return [];
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`(${tokens.map(escape).join("|")})`, "gi");
 
-function buildSnippet(doc: (typeof DOCS)[number], tokens: string[]): string {
-  // Combine title + summary + tags for the snippet pool, prefer summary.
-  const pool =
-    doc.summary +
-    " · " +
-    doc.tags.map((t) => "#" + t).join(" ") +
-    (doc.body ? " · " + doc.body.replace(/\n+/g, " ").slice(0, 320) : "");
-
-  // Find first match position for a context window.
-  let firstMatch = -1;
-  for (const t of tokens) {
-    const i = pool.toLowerCase().indexOf(t.toLowerCase());
-    if (i >= 0 && (firstMatch === -1 || i < firstMatch)) firstMatch = i;
-  }
-
-  let window: string;
-  if (firstMatch < 0) {
-    window = pool.slice(0, 200);
-  } else {
-    const start = Math.max(0, firstMatch - 60);
-    const end = Math.min(pool.length, firstMatch + 200);
-    window = (start > 0 ? "…" : "") + pool.slice(start, end) + (end < pool.length ? "…" : "");
-  }
-
-  return highlight(window, tokens);
-}
-
-function scoreDoc(doc: (typeof DOCS)[number], tokens: string[]): number {
-  let score = 0;
-  const haystacks: [string, number][] = [
-    [doc.title, 4],
-    [doc.summary, 2],
-    [doc.tags.join(" "), 2],
-    [doc.body ?? "", 1],
-  ];
-  for (const [text, weight] of haystacks) {
-    const lc = text.toLowerCase();
-    for (const t of tokens) {
-      const tLc = t.toLowerCase();
-      let idx = 0;
-      while ((idx = lc.indexOf(tLc, idx)) !== -1) {
-        score += weight;
-        idx += tLc.length;
+  return DOCS
+    .map((d) => {
+      const haystack = `${d.title} ${d.summary} ${d.tags.join(" ")} ${d.body ?? ""}`.toLowerCase();
+      let score = 0;
+      for (const t of tokens) {
+        let idx = 0;
+        while ((idx = haystack.indexOf(t, idx)) !== -1) {
+          score += 1;
+          idx += t.length;
+        }
       }
-    }
-  }
-  return score;
+      return { d, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(({ d, score }) => ({
+      id: d.slug,
+      title: d.title,
+      snippet: (d.summary + (d.body ? " · " + d.body.slice(0, 200) : "")).replace(re, "<mark>$1</mark>"),
+      category: d.category,
+      sourceType: d.sourceType,
+      sourceUrl: d.sourceUrl,
+      internalPath: d.internalPath,
+      matchScore: score,
+      lastUpdated: d.lastUpdated,
+    }));
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const q: string = typeof body?.q === "string" ? body.q : "";
-  const tokens = q
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (!tokens.length) {
-    return NextResponse.json({
-      query: q,
-      results: [] as SearchResult[],
-      took: 0,
-    });
+  if (!q.trim()) {
+    return NextResponse.json({ query: q, results: [], took: 0 });
   }
 
   const t0 = performance.now();
-  const scored = DOCS.map((d) => ({ d, s: scoreDoc(d, tokens) }))
-    .filter(({ s }) => s > 0)
-    .sort((a, b) => b.s - a.s);
-
-  const results: SearchResult[] = scored.map(({ d, s }) => ({
-    id: d.slug,
-    title: d.title,
-    snippet: buildSnippet(d, tokens),
-    category: d.category,
-    sourceType: d.sourceType,
-    sourceUrl: d.sourceUrl,
-    internalPath: d.internalPath,
-    matchScore: s,
-    lastUpdated: d.lastUpdated,
-  }));
-
-  return NextResponse.json({
-    query: q,
-    results,
-    took: Math.round((performance.now() - t0) * 100) / 100,
-  });
+  try {
+    const hits = await hybridSearch(q, 30);
+    const results: SearchResult[] = hits.map((h) => ({
+      id: h.slug,
+      title: h.title,
+      snippet: h.snippet,
+      category: h.category as SearchResult["category"],
+      sourceType: h.sourceType as SearchResult["sourceType"],
+      sourceUrl: h.sourceUrl ?? undefined,
+      internalPath: h.internalPath,
+      matchScore: h.matchScore,
+      lastUpdated: h.lastUpdated,
+    }));
+    return NextResponse.json({
+      query: q,
+      results,
+      took: Math.round((performance.now() - t0) * 100) / 100,
+      engine: "hybrid-pgvector",
+    });
+  } catch (e: unknown) {
+    // Fallback to local stub so the UI doesn't break before DB is ready
+    const results = fallback(q);
+    return NextResponse.json({
+      query: q,
+      results,
+      took: Math.round((performance.now() - t0) * 100) / 100,
+      engine: "fallback-stub",
+      warn: String(e),
+    });
+  }
 }
 
-// Allow GET ?q=… for convenience.
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q") ?? "";
   return POST(

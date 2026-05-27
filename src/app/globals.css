@@ -248,3 +248,9 @@
 .hljs-variable, .hljs-template-variable { color: hsl(var(--rust)); }
 .hljs-tag, .hljs-attribute { color: hsl(var(--signal-dim)); }
 .hljs-meta { color: hsl(var(--ink-subtle)); }
+
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

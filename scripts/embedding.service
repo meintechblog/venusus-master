@@ -1,0 +1,17 @@
+[Unit]
+Description=venusus-master embedding service (multilingual-e5-small)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Environment=HF_HOME=/var/cache/huggingface
+ExecStart=/opt/embedding-service/bin/uvicorn embedding-service:app --host 127.0.0.1 --port 8765
+WorkingDirectory=/opt/venusus-master/scripts
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

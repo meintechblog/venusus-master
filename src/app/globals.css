@@ -1,0 +1,250 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────────
+   VENUSUS · Knowledge Base · Design Tokens
+   Aesthetic: warm-grey graphite, voltage-cyan signal,
+              archival monospace, hairline borders.
+   No purple. No generic blue. No drop-shadow-lg.
+   ────────────────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    /* Surfaces — graphite, intentionally warm */
+    --bg:           28 9%  5%;
+    --bg-subtle:    30 8%  7%;
+    --bg-muted:     30 7%  10%;
+    --bg-elevated:  28 6%  13%;
+    --bg-overlay:   24 6%  16%;
+
+    /* Lines — hairline contrast scale */
+    --line:         30 6%  18%;
+    --line-strong:  30 6%  26%;
+
+    /* Ink — five steps of text contrast */
+    --ink:          36 18% 94%;
+    --ink-muted:    34 10% 72%;
+    --ink-subtle:   30 6%  52%;
+    --ink-faint:    30 5%  36%;
+
+    /* Signal — the single accent. Voltage-cyan, slightly green-shifted
+       so it reads as electricity / not corporate blue. */
+    --signal:       176 92% 56%;
+    --signal-dim:   176 60% 38%;
+    --signal-glow:  176 100% 70%;
+
+    /* Semantic — desaturated archival tones */
+    --amber:        38  88% 62%;
+    --amber-dim:    38  40% 38%;
+    --rust:         14  72% 58%;
+    --rust-dim:     14  40% 34%;
+    --moss:         150 36% 52%;
+    --moss-dim:     150 22% 32%;
+    --plum:         300 28% 62%;
+    --plum-dim:     300 18% 36%;
+  }
+
+  /* Light theme — optional. Restrained, paper-warm. */
+  .light {
+    --bg:           36 24% 97%;
+    --bg-subtle:    36 18% 94%;
+    --bg-muted:     36 14% 90%;
+    --bg-elevated:  36 10% 86%;
+    --bg-overlay:   36 8%  82%;
+
+    --line:         30 8%  82%;
+    --line-strong:  30 8%  68%;
+
+    --ink:          28 12% 10%;
+    --ink-muted:    28 8%  28%;
+    --ink-subtle:   28 6%  46%;
+    --ink-faint:    28 5%  62%;
+
+    --signal:       176 80% 32%;
+    --signal-dim:   176 50% 50%;
+    --signal-glow:  176 90% 44%;
+  }
+
+  * {
+    border-color: hsl(var(--line));
+  }
+
+  html {
+    color-scheme: dark;
+    background-color: hsl(var(--bg));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: hsl(var(--bg));
+    color: hsl(var(--ink));
+    font-feature-settings: "ss01", "ss02", "cv11", "cv09";
+  }
+
+  /* Selection — voltage-cyan */
+  ::selection {
+    background: hsl(var(--signal) / 0.25);
+    color: hsl(var(--ink));
+  }
+
+  /* Scrollbars — thin, graphite */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--bg)); }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--line));
+    border: 2px solid hsl(var(--bg));
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--line-strong)); }
+}
+
+@layer components {
+  /* The grain — applied to body via a single utility */
+  .grain::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.8 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Hairline grid — for hero / structured backgrounds */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--line) / 0.5) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--line) / 0.5) 1px, transparent 1px);
+    background-size: 64px 64px;
+    background-position: -1px -1px;
+  }
+
+  /* Subtle dotted */
+  .bg-dots {
+    background-image: radial-gradient(hsl(var(--line-strong)) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Glass surface — for floating bars */
+  .glass {
+    background: hsl(var(--bg) / 0.6);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid hsl(var(--line));
+  }
+
+  /* Hairline plate — the standard card */
+  .plate {
+    background: linear-gradient(180deg, hsl(var(--bg-subtle)) 0%, hsl(var(--bg)) 100%);
+    border: 1px solid hsl(var(--line));
+    box-shadow: 0 1px 0 0 hsl(var(--line-strong) / 0.4) inset;
+  }
+
+  /* Accent rule — diagonal corner cut for special elements */
+  .corner-cut {
+    clip-path: polygon(
+      0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)
+    );
+  }
+
+  /* Microcaps label */
+  .label-micro {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* Highlight marks inside snippets */
+  mark {
+    background: hsl(var(--signal) / 0.2);
+    color: hsl(var(--signal-glow));
+    padding: 0 2px;
+    border-radius: 2px;
+    border-bottom: 1px solid hsl(var(--signal) / 0.5);
+  }
+
+  /* Markdown reader (prose customizations) */
+  .prose-venusus {
+    --tw-prose-body: hsl(var(--ink-muted));
+    --tw-prose-headings: hsl(var(--ink));
+    --tw-prose-links: hsl(var(--signal));
+    --tw-prose-bold: hsl(var(--ink));
+    --tw-prose-code: hsl(var(--signal));
+    --tw-prose-pre-bg: hsl(var(--bg-subtle));
+    --tw-prose-pre-code: hsl(var(--ink));
+    --tw-prose-quote-borders: hsl(var(--signal-dim));
+    --tw-prose-th-borders: hsl(var(--line-strong));
+    --tw-prose-td-borders: hsl(var(--line));
+  }
+
+  .prose-venusus h1,
+  .prose-venusus h2,
+  .prose-venusus h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  .prose-venusus h2 {
+    border-top: 1px solid hsl(var(--line));
+    padding-top: 1.5rem;
+    margin-top: 2.5rem;
+  }
+
+  .prose-venusus code:not(pre code) {
+    background: hsl(var(--bg-elevated));
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid hsl(var(--line));
+    font-size: 0.85em;
+    color: hsl(var(--signal));
+  }
+
+  .prose-venusus code::before,
+  .prose-venusus code::after {
+    content: "" !important;
+  }
+
+  .prose-venusus pre {
+    border: 1px solid hsl(var(--line));
+    border-radius: 8px;
+    padding: 1.25rem;
+    overflow-x: auto;
+  }
+
+  .prose-venusus a {
+    text-decoration: none;
+    border-bottom: 1px solid hsl(var(--signal-dim));
+    transition: border-color 0.15s ease;
+  }
+
+  .prose-venusus a:hover {
+    border-bottom-color: hsl(var(--signal));
+  }
+
+  .prose-venusus blockquote {
+    font-style: normal;
+    border-left-width: 2px;
+    padding-left: 1.25rem;
+    color: hsl(var(--ink));
+  }
+}
+
+/* highlight.js — minimal mono palette tuned to our signal cyan */
+.hljs {
+  color: hsl(var(--ink));
+  background: hsl(var(--bg-subtle));
+}
+.hljs-comment, .hljs-quote { color: hsl(var(--ink-faint)); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: hsl(var(--signal)); }
+.hljs-string, .hljs-attr { color: hsl(var(--moss)); }
+.hljs-number, .hljs-literal { color: hsl(var(--amber)); }
+.hljs-title, .hljs-section, .hljs-name { color: hsl(var(--ink)); font-weight: 600; }
+.hljs-variable, .hljs-template-variable { color: hsl(var(--rust)); }
+.hljs-tag, .hljs-attribute { color: hsl(var(--signal-dim)); }
+.hljs-meta { color: hsl(var(--ink-subtle)); }

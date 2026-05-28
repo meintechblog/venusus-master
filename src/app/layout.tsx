@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Instrument_Serif } from "next/font/google";
+import { JetBrains_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import "highlight.js/styles/base16/black-metal.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { CommandPalette } from "@/components/command-palette";
-
-// Body sans: declared inline via CSS custom property below — we lean on
-// IBM Plex Sans / system stack to avoid a fetched Inter / Geist that would
-// flatten this design into generic AI-template territory.
 
 const mono = JetBrains_Mono({
   subsets: ["latin"],
@@ -17,13 +13,18 @@ const mono = JetBrains_Mono({
   weight: ["400", "500", "600"],
 });
 
-// Display: Instrument Serif — editorial, distinctive, not Inter/Space-Grotesk
-const display = Instrument_Serif({
+const sans = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
+
+const display = Inter({
   subsets: ["latin"],
   variable: "--font-display",
   display: "swap",
-  weight: ["400"],
-  style: ["normal", "italic"],
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -49,15 +50,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${mono.variable} ${display.variable} dark`}
-      style={
-        {
-          // Inline declaration so the --font-sans variable resolves without a fetched font.
-          // System font stack — but we lean on IBM Plex Sans + Geist if locally installed.
-          ["--font-sans" as string]:
-            '"IBM Plex Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-        } as React.CSSProperties
-      }
+      className={`${mono.variable} ${sans.variable} ${display.variable} dark`}
       suppressHydrationWarning
     >
       <body className="font-sans grain min-h-screen flex flex-col antialiased">

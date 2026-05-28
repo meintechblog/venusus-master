@@ -3,8 +3,10 @@
 
 import { Pool } from "pg";
 
+// In production DATABASE_URL is supplied by the systemd unit; this fallback is a
+// local-dev placeholder only — set DATABASE_URL yourself (no real password here).
 const connectionString =
-  process.env.DATABASE_URL ?? "postgres://venusus:venusus_local_only@127.0.0.1:5432/venusus_master";
+  process.env.DATABASE_URL ?? "postgres://venusus:<password>@127.0.0.1:5432/venusus_master";
 
 const globalForPool = globalThis as unknown as { __pgPool?: Pool };
 

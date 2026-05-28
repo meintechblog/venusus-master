@@ -27,8 +27,9 @@ import httpx
 import psycopg
 from psycopg.rows import dict_row
 
+# Production sets DATABASE_URL in the environment; this is a local-dev placeholder.
 PG_DSN = os.environ.get(
-    "DATABASE_URL", "postgres://venusus:venusus_local_only@127.0.0.1:5432/venusus_master"
+    "DATABASE_URL", "postgres://venusus:<password>@127.0.0.1:5432/venusus_master"
 )
 EMBED_URL = os.environ.get("EMBED_URL", "http://127.0.0.1:8765")
 CONTENT_ROOT = Path(os.environ.get("CONTENT_ROOT", "/opt/venusus-master/content"))

@@ -42,8 +42,14 @@ def infer_source(rel_path: Path) -> tuple[str, str, str | None, str | None]:
     parts = rel_path.parts
     name = parts[0] if parts else ""
 
+    # sync-content.sh rsyncs knowledge/<subtree> → content/knowledge/<subtree>.
+    # Strip the prefix and re-dispatch so victron-official/community-drivers/
+    # victron-professional/meintechblog get their proper source-type instead
+    # of falling through to the 'misc' default.
+    if name == "knowledge" and len(parts) > 1:
+        return infer_source(Path(*parts[1:]))
+
     if name == "docs":
-        # Eigene docs aus venusos-master/docs/*.md
         return ("our-installation", "own-findings", None, None)
 
     if name == "memory":
@@ -55,8 +61,13 @@ def infer_source(rel_path: Path) -> tuple[str, str, str | None, str | None]:
     if name == "reports":
         return ("findings-and-decisions", "own-findings", "report", None)
 
+    if name == "meintechblog":
+        return ("community-blogs", "live-doc", "meintechblog", None)
+
+    if name == "community-forum":
+        return ("community-blogs", "live-doc", "community-forum", None)
+
     if name == "victron-official":
-        # subfolder telling us more
         if len(parts) > 1 and parts[1] == "live-docs":
             return ("victron-official", "live-doc", None, None)
         if len(parts) > 1 and parts[1] == "wiki":
@@ -267,6 +278,24 @@ def extract_pdf_text(fp: Path) -> str:
     return "\n\n".join(out)
 
 
+def title_from_pdf_text(body: str, fallback: str) -> str:
+    # The first page often starts with "## Page 1\n\n<title>\n<rest>".
+    # Take the first non-empty, non-heading line that's > 5 chars, < 140 chars,
+    # not all-uppercase noise, not page-number-ish, not URL-only.
+    for raw in body.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("##") or line.startswith("#"):
+            continue
+        if len(line) < 5 or len(line) > 140:
+            continue
+        if line.lower().startswith(("page ", "seite ", "http", "www.")):
+            continue
+        if line.replace(" ", "").isdigit():
+            continue
+        return line
+    return fallback
+
+
 def ingest_file(cur, fp: Path, run_stats: dict):
     rel = fp.relative_to(CONTENT_ROOT)
     if fp.suffix.lower() == ".pdf":
@@ -277,7 +306,8 @@ def ingest_file(cur, fp: Path, run_stats: dict):
             print(f"  WARN {fp}: empty PDF text", flush=True)
             return
         fm = {}
-        title = fp.stem.replace("_", " ").replace("-", " ")
+        fallback_title = fp.stem.replace("_", " ").replace("-", " ")
+        title = title_from_pdf_text(body, fallback_title)
         summary = body.split("\n\n", 1)[0][:300]
     else:
         category, source_type, subcategory, _ = infer_source(rel)

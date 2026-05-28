@@ -277,8 +277,17 @@ export async function liveSearchTitles(query: string, limit = 8): Promise<LiveSe
   // No embedding — instant, no GPU/CPU spin, good enough for autocomplete.
   const q = query.trim();
   if (!q) return [];
-  const { rows } = await pool.query(
-    `
+  const tokens = q.split(/\s+/).filter((t) => t.length >= 2);
+  if (tokens.length === 0) return [];
+
+  // Build dynamic AND-ILIKE across tokens against title || ' ' || summary.
+  // First param is full query (for trigram score). Tokens follow as $2..$N.
+  const tokenParams = tokens.map((_, i) => `$${i + 2}`);
+  const ilikeClauses = tokenParams
+    .map((p) => `(title ILIKE '%' || ${p} || '%' OR COALESCE(summary,'') ILIKE '%' || ${p} || '%')`)
+    .join(" AND ");
+
+  const sql = `
     SELECT slug, title, COALESCE(summary,'') AS summary,
            source_type AS "sourceType", category,
            GREATEST(
@@ -286,13 +295,11 @@ export async function liveSearchTitles(query: string, limit = 8): Promise<LiveSe
              similarity(COALESCE(summary,''), $1)
            ) AS score
       FROM documents
-     WHERE title ILIKE '%' || $1 || '%'
-        OR summary ILIKE '%' || $1 || '%'
-        OR similarity(title, $1) > 0.2
+     WHERE ${ilikeClauses}
+        OR similarity(title, $1) > 0.25
      ORDER BY score DESC NULLS LAST, length(title) ASC
-     LIMIT $2
-    `,
-    [q, limit]
-  );
+     LIMIT $${tokens.length + 2}
+  `;
+  const { rows } = await pool.query(sql, [q, ...tokens, limit]);
   return rows as LiveSearchHit[];
 }

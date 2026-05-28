@@ -34,13 +34,13 @@ export function SiteHeader() {
             Findings
           </Link>
           <Link
-            href="/category/bug-reports"
+            href="/search?q=upstream+PR"
             className="hover:text-ink transition-colors duration-150"
           >
             Upstream
           </Link>
           <Link
-            href="/category/hallbude"
+            href="/category/our-installation"
             className="hover:text-ink transition-colors duration-150"
           >
             Anlage

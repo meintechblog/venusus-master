@@ -278,19 +278,28 @@ def extract_pdf_text(fp: Path) -> str:
     return "\n\n".join(out)
 
 
+DATE_PREFIX_RE = re.compile(r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}[\s\d:]*")
+
+
 def title_from_pdf_text(body: str, fallback: str) -> str:
-    # The first page often starts with "## Page 1\n\n<title>\n<rest>".
-    # Take the first non-empty, non-heading line that's > 5 chars, < 140 chars,
-    # not all-uppercase noise, not page-number-ish, not URL-only.
-    for raw in body.splitlines():
+    # Walk first ~40 lines, pick the first plausible title.
+    for raw in body.splitlines()[:40]:
         line = raw.strip()
-        if not line or line.startswith("##") or line.startswith("#"):
+        if not line or line.startswith("#"):
             continue
+        # Strip leading timestamp e.g. "2019-06-08 22:47 1/4 How to update..."
+        line = DATE_PREFIX_RE.sub("", line).strip()
         if len(line) < 5 or len(line) > 140:
             continue
         if line.lower().startswith(("page ", "seite ", "http", "www.")):
             continue
         if line.replace(" ", "").isdigit():
+            continue
+        # Skip marketing slash-fests ("/ Perfect Charging / Perfect Welding")
+        if line.count("/") >= 2 and len(line.split("/")) > 2:
+            continue
+        # Skip lines that are mostly punctuation / dots / dashes
+        if sum(ch.isalpha() for ch in line) < len(line) * 0.4:
             continue
         return line
     return fallback

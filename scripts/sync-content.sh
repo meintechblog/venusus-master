@@ -23,11 +23,12 @@ rsync -a --delete \
   "$LOCAL_ROOT/reports/" \
   "$LXC_HOST:$REMOTE_CONTENT/reports/" 2>/dev/null || true
 
-echo "==> Syncing knowledge/ (Markdown only)..."
+echo "==> Syncing knowledge/ (Markdown + PDFs)..."
 rsync -a --delete \
   --include='*/' \
   --include='*.md' \
   --include='*.txt' \
+  --include='*.pdf' \
   --exclude='*' \
   --exclude='.DS_Store' \
   "$LOCAL_ROOT/knowledge/" \

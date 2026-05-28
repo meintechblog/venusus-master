@@ -249,13 +249,42 @@ def summary_from_markdown(text: str) -> str:
     return (paras[0][:300] + "…") if paras and len(paras[0]) > 300 else (paras[0] if paras else "")
 
 
+def extract_pdf_text(fp: Path) -> str:
+    try:
+        import pypdf
+    except ImportError:
+        return ""
+    out = []
+    with fp.open("rb") as f:
+        reader = pypdf.PdfReader(f)
+        for i, page in enumerate(reader.pages, 1):
+            try:
+                txt = page.extract_text() or ""
+            except Exception:
+                txt = ""
+            if txt.strip():
+                out.append(f"## Page {i}\n\n{txt.strip()}")
+    return "\n\n".join(out)
+
+
 def ingest_file(cur, fp: Path, run_stats: dict):
     rel = fp.relative_to(CONTENT_ROOT)
-    category, source_type, subcategory, _ = infer_source(rel)
-    text = fp.read_text(encoding="utf-8", errors="ignore")
-    fm, body = parse_frontmatter(text)
-    title = fm.get("name") or title_from_markdown(body, fp.stem)
-    summary = fm.get("description") or summary_from_markdown(body)
+    if fp.suffix.lower() == ".pdf":
+        category, _, subcategory, _ = infer_source(rel)
+        source_type = "pdf-manual"
+        body = extract_pdf_text(fp)
+        if not body.strip():
+            print(f"  WARN {fp}: empty PDF text", flush=True)
+            return
+        fm = {}
+        title = fp.stem.replace("_", " ").replace("-", " ")
+        summary = body.split("\n\n", 1)[0][:300]
+    else:
+        category, source_type, subcategory, _ = infer_source(rel)
+        text = fp.read_text(encoding="utf-8", errors="ignore")
+        fm, body = parse_frontmatter(text)
+        title = fm.get("name") or title_from_markdown(body, fp.stem)
+        summary = fm.get("description") or summary_from_markdown(body)
 
     # Heuristic for source_url: scan first ~10 lines for "Source: URL" / "Quelle: URL"
     source_url = None
@@ -316,7 +345,8 @@ def main():
             conn.commit()
 
             count = 0
-            for fp in sorted(root.rglob("*.md")):
+            files = sorted(list(root.rglob("*.md")) + list(root.rglob("*.pdf")))
+            for fp in files:
                 # skip hidden/git
                 if any(part.startswith(".") for part in fp.relative_to(root).parts):
                     continue

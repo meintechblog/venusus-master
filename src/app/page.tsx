@@ -3,19 +3,40 @@ import { HeroSearch } from "@/components/hero-search";
 import { CategoryTile } from "@/components/category-tile";
 import { SourceBadge } from "@/components/source-badge";
 import { LiveStats } from "@/components/live-stats";
-import { CATEGORIES, DOCS, getFindings } from "@/lib/data";
+import type { Category, SourceType } from "@/lib/types";
+import {
+  getStats,
+  listAllCategories,
+  listFindingsChronological,
+  listRecentDocuments,
+} from "@/lib/db";
 import { ArrowRight, Cpu, GitPullRequest, Zap } from "lucide-react";
 import { formatDate, timeAgo } from "@/lib/utils";
-import { getStats } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+const CATEGORY_DISPLAY: Record<string, Pick<Category, "title" | "blurb" | "hue" | "glyph">> = {
+  "victron-official": { title: "Victron Official", blurb: "Datasheets, source repos, wikis, live docs.", hue: "signal", glyph: "Ω" },
+  "community-drivers": { title: "Community Drivers", blurb: "mr-manuel, BatteryAggregator, mqtt-bridges.", hue: "moss", glyph: "≈" },
+  "our-installation": { title: "Our Installation", blurb: "Hallbude ~90 kWh DIY-pack — audit, protection, applied changes.", hue: "amber", glyph: "▣" },
+  "findings-and-decisions": { title: "Findings & Decisions", blurb: "Undocumented behavior, deltas, persisted memory.", hue: "rust", glyph: "✦" },
+  "community-blogs": { title: "Community Blogs", blurb: "meintechblog mirrors, forum threads.", hue: "plum", glyph: "✎" },
+  "pro-portal": { title: "Pro Portal", blurb: "Victron Professional — firmware, dropbox, developer docs.", hue: "signal", glyph: "⌁" },
+  misc: { title: "Misc", blurb: "Uncategorized — still to be sorted.", hue: "plum", glyph: "·" },
+};
+
 export default async function HomePage() {
-  // Server-rendered initial snapshot (avoids empty-state flicker); the LiveStats
-  // client component then subscribes to /api/stats/stream for live updates.
   let initialStats = {};
+  let categoryRows: { slug: string; count: number }[] = [];
+  let recent: Awaited<ReturnType<typeof listRecentDocuments>> = [];
+  let findings: Awaited<ReturnType<typeof listFindingsChronological>> = [];
   try {
-    const s = await getStats();
+    const [s, cats, rec, find] = await Promise.all([
+      getStats(),
+      listAllCategories(),
+      listRecentDocuments(5),
+      listFindingsChronological(),
+    ]);
     initialStats = {
       document_count: s.documentCount,
       chunk_count: s.chunkCount,
@@ -31,16 +52,31 @@ export default async function HomePage() {
       db_size_bytes: s.dbSizeBytes,
       last_ingest_at: s.lastIngestAt,
     };
+    categoryRows = cats;
+    recent = rec;
+    findings = find;
   } catch {
-    // DB not reachable in dev — LiveStats falls back to em-dashes.
+    // DB not reachable — fall back to empty UI; LiveStats shows em-dashes.
   }
-  const recent = [...DOCS]
-    .sort(
-      (a, b) =>
-        new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime(),
-    )
-    .slice(0, 5);
-  const latestFinding = getFindings()[0];
+
+  const CATEGORIES: Category[] = categoryRows.map((c) => {
+    const meta = CATEGORY_DISPLAY[c.slug] ?? {
+      title: c.slug.replace(/-/g, " ").replace(/\b\w/g, (x) => x.toUpperCase()),
+      blurb: `${c.count} documents.`,
+      hue: "signal" as const,
+      glyph: "·",
+    };
+    return { slug: c.slug as never, count: c.count, ...meta };
+  });
+
+  const latestFinding = findings[0]
+    ? {
+        slug: findings[0].slug as string,
+        title: findings[0].title as string,
+        summary: (findings[0].summary ?? "") as string,
+        lastUpdated: new Date(findings[0].lastUpdated).toISOString(),
+      }
+    : null;
 
   return (
     <>
@@ -156,7 +192,7 @@ export default async function HomePage() {
 
             <ul className="divide-y divide-line border-b border-line">
               {recent.map((d, i) => (
-                <li key={d.slug}>
+                <li key={d.slug as string}>
                   <Link
                     href={`/doc/${d.slug}`}
                     className="group grid grid-cols-[auto_1fr_auto] items-center gap-5 py-4 hover:bg-bg-subtle/40 -mx-2 px-2 transition-colors duration-150"
@@ -166,14 +202,14 @@ export default async function HomePage() {
                     </span>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <SourceBadge type={d.sourceType} />
+                        <SourceBadge type={d.sourceType as SourceType} />
                       </div>
                       <div className="text-[15px] text-ink group-hover:text-signal transition-colors truncate">
-                        {d.title}
+                        {d.title as string}
                       </div>
                     </div>
                     <span className="font-mono text-[11px] text-ink-faint shrink-0">
-                      {timeAgo(d.lastUpdated)}
+                      {timeAgo(new Date(d.lastUpdated).toISOString())}
                     </span>
                   </Link>
                 </li>
@@ -218,16 +254,16 @@ export default async function HomePage() {
 
             <div className="mt-3 grid grid-cols-2 gap-2">
               <MiniCard
-                href="/category/hallbude"
+                href="/category/our-installation"
                 icon={<Cpu className="w-3.5 h-3.5" />}
                 label="Hallbude"
                 value="4 stacks"
               />
               <MiniCard
-                href="/category/bug-reports"
+                href="/search?q=upstream+PR"
                 icon={<GitPullRequest className="w-3.5 h-3.5" />}
                 label="Upstream"
-                value="7 PRs"
+                value="search"
               />
             </div>
           </div>

@@ -240,6 +240,20 @@ export async function listAllCategories() {
   return rows as { slug: string; count: number }[];
 }
 
+export async function listRecentDocuments(limit = 5) {
+  const { rows } = await pool.query(
+    `SELECT slug, title, summary, category, subcategory,
+            source_type AS "sourceType", source_url AS "sourceUrl",
+            internal_path AS "internalPath", last_updated AS "lastUpdated",
+            has_own_content AS "hasOwnContent", tags
+       FROM documents
+      ORDER BY last_updated DESC, title ASC
+      LIMIT $1`,
+    [limit]
+  );
+  return rows;
+}
+
 export async function listAllDocumentSlugs() {
   const { rows } = await pool.query(`SELECT slug FROM documents`);
   return rows.map((r) => r.slug as string);

@@ -2,10 +2,17 @@ import { listFindingsChronological } from "@/lib/db";
 import { DocRow } from "@/components/doc-row";
 import { Zap } from "lucide-react";
 
-export const revalidate = 60;
+// Render on demand: this page is DB-backed, so don't prerender it at build time
+// (a DB blip during build must not fail the whole deploy). Mirrors the homepage.
+export const dynamic = "force-dynamic";
 
 export default async function FindingsPage() {
-  const rows = await listFindingsChronological();
+  let rows: Awaited<ReturnType<typeof listFindingsChronological>> = [];
+  try {
+    rows = await listFindingsChronological();
+  } catch {
+    // DB unreachable — render an empty findings list rather than 500.
+  }
   const findings = rows.map((r) => ({
     slug: r.slug as string,
     title: r.title as string,

@@ -12,18 +12,9 @@ import {
 } from "@/lib/db";
 import { ArrowRight, Cpu, GitPullRequest, Zap } from "lucide-react";
 import { formatDate, timeAgo } from "@/lib/utils";
+import { categoryMeta } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
-
-const CATEGORY_DISPLAY: Record<string, Pick<Category, "title" | "blurb" | "hue" | "glyph">> = {
-  "victron-official": { title: "Victron Official", blurb: "Datasheets, source repos, wikis, live docs.", hue: "signal", glyph: "Ω" },
-  "community-drivers": { title: "Community Drivers", blurb: "mr-manuel, BatteryAggregator, mqtt-bridges.", hue: "moss", glyph: "≈" },
-  "our-installation": { title: "Our Installation", blurb: "Hallbude ~90 kWh DIY-pack — audit, protection, applied changes.", hue: "amber", glyph: "▣" },
-  "findings-and-decisions": { title: "Findings & Decisions", blurb: "Undocumented behavior, deltas, persisted memory.", hue: "rust", glyph: "✦" },
-  "community-blogs": { title: "Community Blogs", blurb: "meintechblog mirrors, forum threads.", hue: "plum", glyph: "✎" },
-  "pro-portal": { title: "Pro Portal", blurb: "Victron Professional — firmware, dropbox, developer docs.", hue: "signal", glyph: "⌁" },
-  misc: { title: "Misc", blurb: "Uncategorized — still to be sorted.", hue: "plum", glyph: "·" },
-};
 
 export default async function HomePage() {
   let initialStats = {};
@@ -60,13 +51,15 @@ export default async function HomePage() {
   }
 
   const CATEGORIES: Category[] = categoryRows.map((c) => {
-    const meta = CATEGORY_DISPLAY[c.slug] ?? {
-      title: c.slug.replace(/-/g, " ").replace(/\b\w/g, (x) => x.toUpperCase()),
-      blurb: `${c.count} documents.`,
-      hue: "signal" as const,
-      glyph: "·",
+    const meta = categoryMeta(c.slug);
+    return {
+      slug: c.slug as never,
+      count: c.count,
+      title: meta.title,
+      blurb: meta.blurb || `${c.count} documents.`,
+      hue: meta.hue,
+      glyph: meta.glyph,
     };
-    return { slug: c.slug as never, count: c.count, ...meta };
   });
 
   const latestFinding = findings[0]

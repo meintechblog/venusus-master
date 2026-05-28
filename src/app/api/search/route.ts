@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       internalPath: h.internalPath,
       matchScore: h.matchScore,
       lastUpdated: h.lastUpdated,
+      headingPath: h.headingPath,
     }));
     return NextResponse.json({
       query: q,

@@ -4,8 +4,8 @@ import { headers } from "next/headers";
 import { SourceBadge } from "@/components/source-badge";
 import { HeroSearch } from "@/components/hero-search";
 import type { SearchResult } from "@/lib/types";
-import { ArrowUpRight, Hash, ExternalLink } from "lucide-react";
-import { getCategory } from "@/lib/data";
+import { ArrowUpRight, Hash, ExternalLink, CornerDownRight } from "lucide-react";
+import { categoryMeta } from "@/lib/categories";
 import { formatDate } from "@/lib/utils";
 
 interface PageProps {
@@ -101,6 +101,14 @@ export default async function SearchPage({ searchParams }: PageProps) {
   );
 }
 
+// Normalize the chunk's heading_path into a readable section breadcrumb.
+// Handles markdown heading markers, collapses whitespace, drops empties.
+function formatHeadingPath(raw?: string | null): string | null {
+  if (!raw) return null;
+  const s = raw.replace(/^#+\s*/, "").replace(/`/g, "").replace(/\s+/g, " ").trim();
+  return s.length > 0 ? s : null;
+}
+
 function ResultCard({
   result,
   index,
@@ -108,7 +116,8 @@ function ResultCard({
   result: SearchResult;
   index: number;
 }) {
-  const cat = getCategory(result.category);
+  const cat = categoryMeta(result.category);
+  const section = formatHeadingPath(result.headingPath);
 
   return (
     <article
@@ -117,15 +126,13 @@ function ResultCard({
     >
       <div className="flex items-center gap-2 flex-wrap mb-2.5">
         <SourceBadge type={result.sourceType} />
-        {cat && (
-          <Link
-            href={`/category/${cat.slug}`}
-            className="inline-flex items-center gap-1 px-2 h-5 rounded-xs border border-line bg-bg font-mono text-[10px] tracking-microcaps uppercase text-ink-subtle hover:text-ink hover:border-line-strong transition-colors"
-          >
-            <Hash className="w-2.5 h-2.5" />
-            {cat.title}
-          </Link>
-        )}
+        <Link
+          href={`/category/${cat.slug}`}
+          className="inline-flex items-center gap-1 px-2 h-5 rounded-xs border border-line bg-bg font-mono text-[10px] tracking-microcaps uppercase text-ink-subtle hover:text-ink hover:border-line-strong transition-colors"
+        >
+          <Hash className="w-2.5 h-2.5" />
+          {cat.title}
+        </Link>
         <span className="font-mono text-[10px] tracking-microcaps uppercase text-ink-faint">
           {formatDate(result.lastUpdated)}
         </span>
@@ -142,6 +149,13 @@ function ResultCard({
           {result.title}
         </h2>
       </Link>
+
+      {section && (
+        <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px] text-ink-faint min-w-0">
+          <CornerDownRight className="w-3 h-3 shrink-0 text-signal/60" />
+          <span className="truncate">{section}</span>
+        </div>
+      )}
 
       <p
         className="mt-2 text-[14px] leading-relaxed text-ink-muted"

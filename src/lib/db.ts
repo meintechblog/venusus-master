@@ -89,11 +89,52 @@ export type SearchHit = {
   internalPath: string;
   lastUpdated: string;
   hasOwnContent: boolean;
+  headingPath: string | null;
   snippet: string;
   matchScore: number;
 };
 
 const RRF_K = 60; // constant for Reciprocal Rank Fusion
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// Build a match-aware snippet: window the text around the first matched term
+// (instead of always taking the head of the chunk), HTML-escape it so code-ish
+// chunk content can't break the markup, then wrap matched terms in <mark>.
+// Semantic-only hits with no literal term in the chunk fall back to the head.
+function makeSnippet(text: string, terms: string[], win = 300): string {
+  if (!text) return "";
+  const lower = text.toLowerCase();
+  let pos = -1;
+  for (const term of terms) {
+    const i = lower.indexOf(term.toLowerCase());
+    if (i !== -1 && (pos === -1 || i < pos)) pos = i;
+  }
+  let start = 0;
+  if (pos > 80) {
+    start = pos - 80;
+    // snap forward to the next word boundary so we don't cut mid-word
+    const sp = text.indexOf(" ", start);
+    if (sp !== -1 && sp - start < 40) start = sp + 1;
+  }
+  const prefix = start > 0 ? "…" : "";
+  const suffix = start + win < text.length ? "…" : "";
+  let slice = escapeHtml(text.slice(start, start + win));
+  for (const term of terms) {
+    const re = new RegExp(`(${escapeRegExp(term)})`, "ig");
+    slice = slice.replace(re, "<mark>$1</mark>");
+  }
+  return prefix + slice + suffix;
+}
 
 export async function hybridSearch(query: string, limit = 20): Promise<SearchHit[]> {
   const queryEmbedding = await embedQuery(query);
@@ -135,11 +176,18 @@ export async function hybridSearch(query: string, limit = 20): Promise<SearchHit
         COALESCE(1.0 / ($3 + f.rnk), 0)   AS f_score
       FROM semantic s FULL OUTER JOIN fts f USING (chunk_id)
     ),
-    ranked AS (
-      SELECT
+    best_per_doc AS (
+      -- Collapse to the single best-scoring chunk per document so a doc with
+      -- many matching chunks shows up once, not N times.
+      SELECT DISTINCT ON (doc_id)
         chunk_id, doc_id, content, heading_path,
         (s_score + f_score) AS score
       FROM fused
+      ORDER BY doc_id, (s_score + f_score) DESC
+    ),
+    ranked AS (
+      SELECT chunk_id, doc_id, content, heading_path, score
+      FROM best_per_doc
       ORDER BY score DESC
       LIMIT $4
     )
@@ -165,19 +213,10 @@ export async function hybridSearch(query: string, limit = 20): Promise<SearchHit
     [vecLiteral, query, RRF_K, limit]
   );
 
-  // Build snippets: first ~300 chars of chunk content with naive query highlighting
   const terms = query
     .split(/\s+/)
     .map((t) => t.trim())
     .filter((t) => t.length > 2);
-  const highlight = (text: string) => {
-    let out = text.slice(0, 320);
-    for (const term of terms) {
-      const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "ig");
-      out = out.replace(re, "<mark>$1</mark>");
-    }
-    return out;
-  };
 
   return rows.map((r) => ({
     id: Number(r.id),
@@ -191,7 +230,8 @@ export async function hybridSearch(query: string, limit = 20): Promise<SearchHit
     internalPath: r.internalPath,
     lastUpdated: new Date(r.lastUpdated).toISOString(),
     hasOwnContent: r.hasOwnContent,
-    snippet: highlight(r.content ?? ""),
+    headingPath: (r.heading_path as string | null) ?? null,
+    snippet: makeSnippet((r.content as string | null) ?? "", terms),
     matchScore: Number(r.matchScore),
   }));
 }

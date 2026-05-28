@@ -12,10 +12,20 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { CATEGORIES, DOCS } from "@/lib/data";
+import { categoryMeta } from "@/lib/categories";
 import { cn } from "@/lib/utils";
 
 const RECENT_KEY = "venusus:recent-searches";
+
+type LiveHit = {
+  slug: string;
+  title: string;
+  summary: string;
+  sourceType: string;
+  category: string;
+};
+
+type CatHit = { slug: string; count: number; title: string };
 
 function getRecent(): string[] {
   if (typeof window === "undefined") return [];
@@ -37,8 +47,11 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
+  const [hits, setHits] = useState<LiveHit[]>([]);
+  const [cats, setCats] = useState<CatHit[]>([]);
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // open via ⌘K / ctrl-K
   useEffect(() => {
@@ -62,10 +75,50 @@ export function CommandPalette() {
     if (open) {
       setRecent(getRecent());
       setQuery("");
+      setHits([]);
       // small delay so the dialog mounts before focus
       requestAnimationFrame(() => inputRef.current?.focus());
+      // Load real categories once (cheap; cached in state for the session).
+      if (cats.length === 0) {
+        fetch("/api/categories")
+          .then((r) => r.json())
+          .then((d: { categories?: { slug: string; count: number }[] }) => {
+            setCats(
+              (d.categories ?? []).map((c) => ({
+                slug: c.slug,
+                count: c.count,
+                title: categoryMeta(c.slug).title,
+              })),
+            );
+          })
+          .catch(() => {});
+      }
     }
-  }, [open]);
+  }, [open, cats.length]);
+
+  // Debounced live typeahead against the real index (titles + summaries).
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setHits([]);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const resp = await fetch(
+          `/api/search/live?q=${encodeURIComponent(trimmed)}&limit=7`,
+        );
+        const data = (await resp.json()) as { results?: LiveHit[] };
+        setHits(data.results ?? []);
+      } catch {
+        setHits([]);
+      }
+    }, 130);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query]);
 
   const go = useCallback(
     (href: string, andRemember?: string) => {
@@ -100,16 +153,7 @@ export function CommandPalette() {
         {/* hairline scan-bar */}
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-signal/60 to-transparent" />
 
-        <Command
-          shouldFilter
-          className="bg-transparent"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && query.trim() && !e.defaultPrevented) {
-              // if there are no matching items cmdk will not have intercepted
-              // — we still allow the explicit free-text search
-            }
-          }}
-        >
+        <Command shouldFilter={false} className="bg-transparent">
           <div className="flex items-center gap-3 px-4 h-12 border-b border-line">
             <Search className="w-4 h-4 text-ink-subtle shrink-0" />
             <Command.Input
@@ -152,6 +196,7 @@ export function CommandPalette() {
                 {recent.map((r) => (
                   <PaletteItem
                     key={r}
+                    value={`recent:${r}`}
                     icon={Clock}
                     label={r}
                     onSelect={() => go(`/search?q=${encodeURIComponent(r)}`)}
@@ -160,11 +205,12 @@ export function CommandPalette() {
               </Section>
             )}
 
-            {!query && (
+            {!query && cats.length > 0 && (
               <Section label="Jump to category">
-                {CATEGORIES.slice(0, 6).map((c) => (
+                {cats.map((c) => (
                   <PaletteItem
                     key={c.slug}
+                    value={`cat:${c.slug}`}
                     icon={Hash}
                     label={c.title}
                     hint={`${c.count} docs`}
@@ -174,21 +220,25 @@ export function CommandPalette() {
               </Section>
             )}
 
-            <Section label="Documents">
-              {DOCS.slice(0, 8).map((d) => (
-                <PaletteItem
-                  key={d.slug}
-                  icon={FileText}
-                  label={d.title}
-                  hint={d.category}
-                  onSelect={() => go(`/doc/${d.slug}`)}
-                />
-              ))}
-            </Section>
+            {query && hits.length > 0 && (
+              <Section label="Documents">
+                {hits.map((d) => (
+                  <PaletteItem
+                    key={d.slug}
+                    value={`doc:${d.slug}`}
+                    icon={FileText}
+                    label={d.title}
+                    hint={categoryMeta(d.category).title}
+                    onSelect={() => go(`/doc/${d.slug}`, query)}
+                  />
+                ))}
+              </Section>
+            )}
 
             {query && (
               <Section label="Action">
                 <PaletteItem
+                  value="action:run"
                   icon={Zap}
                   label={`Run full search for “${query}”`}
                   hint="↵"
@@ -240,16 +290,19 @@ function PaletteItem({
   label,
   hint,
   onSelect,
+  value,
   variant = "default",
 }: {
   icon: LucideIcon;
   label: string;
   hint?: string;
   onSelect: () => void;
+  value?: string;
   variant?: "default" | "primary";
 }) {
   return (
     <Command.Item
+      value={value}
       onSelect={onSelect}
       className={cn(
         "flex items-center gap-3 px-3 py-2 rounded-sm cursor-pointer text-[13px]",

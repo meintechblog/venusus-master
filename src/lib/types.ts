@@ -51,6 +51,7 @@ export interface SearchResult {
   internalPath: string;
   matchScore: number;
   lastUpdated: string;
+  headingPath?: string | null; // section/page the matched chunk lives in
 }
 
 export const SOURCE_TYPE_LABELS: Record<SourceType, string> = {

@@ -1,45 +1,56 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { DOCS, getCategory, getDoc } from "@/lib/data";
+import { getDocumentBySlug, listAllDocumentSlugs } from "@/lib/db";
 import { DocRenderer, extractHeadings } from "@/components/doc-renderer";
 import { DocToc } from "@/components/doc-toc";
 import { SourceBadge } from "@/components/source-badge";
 import { ArrowLeft, Clock, ExternalLink, FileText } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
-export const dynamicParams = false;
+export const revalidate = 60;
 
-export function generateStaticParams() {
-  return DOCS.map((d) => ({ slug: d.slug }));
+export async function generateStaticParams() {
+  try {
+    const slugs = await listAllDocumentSlugs();
+    return slugs.map((slug) => ({ slug }));
+  } catch {
+    return [];
+  }
 }
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-const PLACEHOLDER_BODY = `# This document is in the index but the body has not been ingested yet.
-
-The metadata is recorded — but the full markdown body is not yet vendored into this build of the knowledge base. It will appear here as soon as the source repository is synced.
-
-## What you can do
-
-- Check the *Source* link above to read the original.
-- Use ⌘K to search other entries on the same topic.
-- Pin this URL — once the body is ingested, it'll render here automatically.
-
----
-
-> **Stub note** — pages render with a minimal scaffold while the corpus is bootstrapped. No content has been lost; this is the initial seed.
-`;
+function readingTimeFor(text: string): number {
+  const words = text.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 220));
+}
 
 export default async function DocPage({ params }: PageProps) {
   const { slug } = await params;
-  const doc = getDoc(slug);
-  if (!doc) notFound();
+  const row = await getDocumentBySlug(slug);
+  if (!row) notFound();
 
-  const cat = getCategory(doc.category);
-  const body = doc.body ?? PLACEHOLDER_BODY;
+  const doc = {
+    slug: row.slug as string,
+    title: row.title as string,
+    summary: (row.summary ?? "") as string,
+    category: row.category as string,
+    subcategory: row.subcategory as string | null,
+    sourceType: row.source_type as string,
+    sourceUrl: row.source_url as string | null,
+    internalPath: row.internal_path as string,
+    lastUpdated: new Date(row.last_updated).toISOString(),
+    tags: (row.tags ?? []) as string[],
+  };
+  const body = (row.content as string | null) ?? "";
+  const readingTime = readingTimeFor(body);
   const headings = extractHeadings(body);
+  const cat = {
+    slug: doc.category,
+    title: doc.category.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-12">
@@ -74,7 +85,7 @@ export default async function DocPage({ params }: PageProps) {
               <SourceBadge type={doc.sourceType} />
               <span className="font-mono text-[10px] tracking-microcaps uppercase text-ink-faint flex items-center gap-1.5">
                 <Clock className="w-2.5 h-2.5" />
-                {doc.readingTime} min read
+                {readingTime} min read
               </span>
               <span className="font-mono text-[10px] tracking-microcaps uppercase text-ink-faint">
                 Updated {formatDate(doc.lastUpdated)}

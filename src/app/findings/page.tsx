@@ -1,11 +1,24 @@
-import { getFindings } from "@/lib/data";
+import { listFindingsChronological } from "@/lib/db";
 import { DocRow } from "@/components/doc-row";
 import { Zap } from "lucide-react";
 
-export default function FindingsPage() {
-  const findings = getFindings();
+export const revalidate = 60;
 
-  // Group by year-month bucket for the chronological view.
+export default async function FindingsPage() {
+  const rows = await listFindingsChronological();
+  const findings = rows.map((r) => ({
+    slug: r.slug as string,
+    title: r.title as string,
+    summary: (r.summary ?? "") as string,
+    category: (r.category ?? "findings-and-decisions") as never,
+    sourceType: (r.sourceType ?? "own-findings") as never,
+    sourceUrl: (r.sourceUrl ?? undefined) as string | undefined,
+    internalPath: (r.internalPath ?? "") as string,
+    lastUpdated: new Date(r.lastUpdated).toISOString(),
+    readingTime: 3,
+    tags: (r.tags ?? []) as string[],
+  }));
+
   const groups = new Map<string, typeof findings>();
   for (const f of findings) {
     const d = new Date(f.lastUpdated);

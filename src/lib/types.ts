@@ -3,7 +3,10 @@ export type SourceType =
   | "community-driver"
   | "own-findings"
   | "pdf-manual"
-  | "live-doc";
+  | "live-doc"
+  | "pro-portal"
+  | "source-repo"
+  | "memory";
 
 export type CategorySlug =
   | "venus-os-dbus"
@@ -56,6 +59,9 @@ export const SOURCE_TYPE_LABELS: Record<SourceType, string> = {
   "own-findings": "Own Findings",
   "pdf-manual": "PDF Manual",
   "live-doc": "Live Doc",
+  "pro-portal": "Pro Portal",
+  "source-repo": "Source Repo",
+  memory: "Memory",
 };
 
 export const SOURCE_TYPE_HUE: Record<SourceType, string> = {
@@ -64,4 +70,7 @@ export const SOURCE_TYPE_HUE: Record<SourceType, string> = {
   "own-findings": "amber",
   "pdf-manual": "plum",
   "live-doc": "rust",
+  "pro-portal": "signal",
+  "source-repo": "moss",
+  memory: "amber",
 };

@@ -221,9 +221,64 @@ export async function getDocumentBySlug(slug: string) {
 
 export async function listFindingsChronological() {
   const { rows } = await pool.query(
-    `SELECT slug, title, summary, last_updated AS "lastUpdated", subcategory
-       FROM documents WHERE source_type = 'own-findings'
+    `SELECT slug, title, summary, last_updated AS "lastUpdated", subcategory,
+            source_type AS "sourceType", category, internal_path AS "internalPath",
+            has_own_content AS "hasOwnContent", source_url AS "sourceUrl", tags
+       FROM documents WHERE source_type IN ('own-findings','memory')
        ORDER BY last_updated DESC`
   );
   return rows;
+}
+
+export async function listAllCategories() {
+  const { rows } = await pool.query(
+    `SELECT category AS slug, COUNT(*)::int AS count
+       FROM documents
+      GROUP BY category
+      ORDER BY count DESC, category ASC`
+  );
+  return rows as { slug: string; count: number }[];
+}
+
+export async function listAllDocumentSlugs() {
+  const { rows } = await pool.query(`SELECT slug FROM documents`);
+  return rows.map((r) => r.slug as string);
+}
+
+export async function listAllCategorySlugs() {
+  const { rows } = await pool.query(`SELECT DISTINCT category AS slug FROM documents`);
+  return rows.map((r) => r.slug as string);
+}
+
+export type LiveSearchHit = {
+  slug: string;
+  title: string;
+  summary: string;
+  sourceType: string;
+  category: string;
+};
+
+export async function liveSearchTitles(query: string, limit = 8): Promise<LiveSearchHit[]> {
+  // Cheap title+summary trigram + tsvector hybrid for typeahead.
+  // No embedding — instant, no GPU/CPU spin, good enough for autocomplete.
+  const q = query.trim();
+  if (!q) return [];
+  const { rows } = await pool.query(
+    `
+    SELECT slug, title, COALESCE(summary,'') AS summary,
+           source_type AS "sourceType", category,
+           GREATEST(
+             similarity(title, $1) * 2,
+             similarity(COALESCE(summary,''), $1)
+           ) AS score
+      FROM documents
+     WHERE title ILIKE '%' || $1 || '%'
+        OR summary ILIKE '%' || $1 || '%'
+        OR similarity(title, $1) > 0.2
+     ORDER BY score DESC NULLS LAST, length(title) ASC
+     LIMIT $2
+    `,
+    [q, limit]
+  );
+  return rows as LiveSearchHit[];
 }

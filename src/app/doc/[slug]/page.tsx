@@ -5,6 +5,7 @@ import { DocRenderer, extractHeadings } from "@/components/doc-renderer";
 import { DocToc } from "@/components/doc-toc";
 import { SourceBadge } from "@/components/source-badge";
 import { ArrowLeft, Clock, ExternalLink, FileText } from "lucide-react";
+import type { SourceType } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 
 export const revalidate = 60;
@@ -82,7 +83,7 @@ export default async function DocPage({ params }: PageProps) {
           {/* Doc header */}
           <header className="mb-10 pb-8 border-b border-line">
             <div className="flex items-center gap-2 flex-wrap mb-5">
-              <SourceBadge type={doc.sourceType} />
+              <SourceBadge type={doc.sourceType as SourceType} />
               <span className="font-mono text-[10px] tracking-microcaps uppercase text-ink-faint flex items-center gap-1.5">
                 <Clock className="w-2.5 h-2.5" />
                 {readingTime} min read

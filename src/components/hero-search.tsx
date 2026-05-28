@@ -123,7 +123,6 @@ export function HeroSearch() {
           spellCheck={false}
           aria-autocomplete="list"
           aria-controls="hero-search-listbox"
-          aria-expanded={open}
         />
         <button
           type="button"

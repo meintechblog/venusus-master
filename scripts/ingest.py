@@ -68,6 +68,13 @@ def infer_source(rel_path: Path) -> tuple[str, str, str | None, str | None]:
     if name == "community-forum":
         return ("community-blogs", "live-doc", "community-forum", None)
 
+    if name == "research-papers":
+        # Peer-reviewed scientific papers (PDF + curated markdown article).
+        # New display category "research-papers"; source_type stays within the
+        # existing enum (live-doc for the .md article; PDFs default to pdf-manual).
+        sub = parts[1] if len(parts) > 1 else None  # e.g. "lfp"
+        return ("research-papers", "live-doc", sub, None)
+
     if name == "victron-official":
         if len(parts) > 1 and parts[1] == "live-docs":
             return ("victron-official", "live-doc", None, None)
